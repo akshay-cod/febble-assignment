@@ -8,7 +8,7 @@ const Queue = require("bull");
 
 require("dotenv").config();
 
-const queue = new Queue('logs-queue',process.env.ISCONTAINER ? {
+const queue = new Queue('logs-queue',process.env.ISCONTAINER == "true" ? {
   redis: {
     host: '172.19.0.2',
     port: 6379
