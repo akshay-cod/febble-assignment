@@ -2,11 +2,18 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const morgan = require("morgan")
+var mysql = require("mysql");
 
 const Queue = require("bull");
-const queue = new Queue('logs-queue');
 
 require("dotenv").config();
+
+const queue = new Queue('logs-queue',process.env.ISCONTAINER ? {
+  redis: {
+    host: '172.19.0.2',
+    port: 6379
+  }
+}: {});
 
 app.use(express.json());
 app.use(express.urlencoded({
@@ -37,13 +44,45 @@ app.listen(process.env.PORT, () =>
     newJobs.map(async (data)=>{
       await queue.add(data,{ removeOnComplete: true, removeOnFail: true },);
     })
-  }, 10000);
+    console.log("working")
+  }, 20000);
 
   queue.process(async (job, done) => {
     try{
       console.log(job.data);
+      if(process.env.DB == "MONGO"){
       const logsRepositoryStorage = new LogsModelRepository();
       const savedALog = await saveALog(logsRepositoryStorage, job.data)
+      }
+      else
+      {
+      var connection = mysql.createPool({
+        host: process.env.HOST,
+        port:3306,
+        user: process.env.USER,
+        password: process.env.PASSWORD,
+        database: process.env.DATABASE,
+    });
+
+   const queryPromise1 = (query) => {
+      return new Promise((resolve, reject)=>{
+          connection.query(query,  (error, results)=>{
+              if(error){
+                  return reject(error);
+              }
+              return resolve(results);
+          });
+      });
+  };
+
+      var sql = `INSERT INTO logs (logs) VALUES ('${JSON.stringify(job.data)}')`;
+     // var sql = "SELECT * from logs"
+      const ranQuery = await queryPromise1(sql);
+      console.log(ranQuery)
+      if(ranQuery){
+        await connection.end()
+      }
+    }
       done();
     }
     catch(err){
